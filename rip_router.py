@@ -40,6 +40,21 @@ class RoutingTable(dict):
     else:
       raise NoRouteException()
 
+  # First, 
+  def process_neighbor(self, packet):
+      source = packet.src
+      distance_vector = packet.paths
+      for host,cost in distance_vector.iteritems():
+        self[source][host] = cost + 1
+
+      unnreachable_hosts = []
+      for host in self[source].iterkeys():
+        if not distance_vector.has_key(host)
+          unnreachable_hosts.append(host)
+      
+      for host in unnreachable_hosts:
+        del self[source][host]
+
 '''
 Create your RIP router in this file.
 '''
@@ -71,7 +86,9 @@ class RIPRouter (Entity):
         print e
       
   def _handle_routing_update(self, packet, port):
-    pass
+    self.routing_table.process_neighbor(packet)
+    routing_update_packet = create_packet_update()
+    self.send(routing_update_packet, port=None, flood=True)
 
   def _handle_data(packet, port):
     destination = packet.dst

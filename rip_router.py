@@ -62,6 +62,7 @@ class RIPRouter (Entity):
   def __init__(self):
     self.routing_table = RoutingTable()
     self.port_lookup = dict()
+    self.distance_vector = dict()
 
   def handle_rx (self, packet, port):
     if isinstance(packet, DiscoveryPacket):
@@ -87,8 +88,15 @@ class RIPRouter (Entity):
       
   def _handle_routing_update(self, packet, port):
     self.routing_table.process_neighbor(packet)
-    routing_update_packet = create_packet_update()
-    self.send(routing_update_packet, port=None, flood=True)
+    if (self._update_distance_vector()):
+      routing_update_packet = RoutingUpdate()
+      routing_update_packet.paths = distance_vector
+      self.send(routing_update_packet, port=None, flood=True)
+
+  # This will update the distance vector if it needs changes
+  # and returns a boolean depending on whether or not DV was changed 
+  def _update_distance_vector():
+    pass
 
   def _handle_data(packet, port):
     destination = packet.dst
@@ -98,4 +106,7 @@ class RIPRouter (Entity):
     except NoRouteException as e:
       print "There is no route to this destination %s via this router, period." % destination
       print e
+
+  def _create_packet_update():
+
 

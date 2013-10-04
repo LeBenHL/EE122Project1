@@ -87,7 +87,7 @@ class RIPRouter (Entity):
         print e
 
     self._calculate_distance_vector()
-    if (self.prev_distance_vector != self.distance_vector):
+    if (self._equalDV() == false):
       # Need to send out different routing updates
       self._send_out_distance_vector()
       
@@ -95,9 +95,19 @@ class RIPRouter (Entity):
     self.routing_table.process_neighbor(packet)
 
     self._calculate_distance_vector()
-    if (self.prev_distance_vector != self.distance_vector):
+    if (self._equalDV() == false):
       # Need to send out different routing updates
       self._send_out_distance_vector()
+
+  # Return whether or not prev distance vector and current distance vector are the same (host, smallest cost)-wise
+  def _equalDV(self):
+    if (len(self.prev_distance_vector) != len(self.distance_vector)):
+      return false
+    # Here, both distance vectors have the same size
+    for host, best_neighbor in self.distance_vector.iteritems():
+      if (best_neighbor.cost != self.prev_distance_vector[host].cost):
+        return false
+    return true
 
   # Need to differentiate between neighbors and hosts??
   # Send to all neighbors their respective version of the distance vector

@@ -36,23 +36,22 @@ class RoutingTable(dict):
         continue
 
     if best_neighbor_so_far:
-      return best_neighbor_so_far.neighbor
+      return best_neighbor_so_far
     else:
       raise NoRouteException()
 
-  # First, 
   def process_neighbor(self, packet):
       source = packet.src
       distance_vector = packet.paths
       for host,cost in distance_vector.iteritems():
         self[source][host] = cost + 1
 
-      unnreachable_hosts = []
+      unreachable_hosts = []
       for host in self[source].iterkeys():
         if not distance_vector.has_key(host)
-          unnreachable_hosts.append(host)
+          unreachable_hosts.append(host)
       
-      for host in unnreachable_hosts:
+      for host in unreachable_hosts:
         del self[source][host]
 
 '''
@@ -61,8 +60,9 @@ Create your RIP router in this file.
 class RIPRouter (Entity):
   def __init__(self):
     self.routing_table = RoutingTable()
-    self.port_lookup = dict()
+    self.port_lookup = dict() # Dictionary with key=neighbor, value=corresponding port
     self.distance_vector = dict()
+    self.prev_distance_vector = null
 
   def handle_rx (self, packet, port):
     if isinstance(packet, DiscoveryPacket):
@@ -73,7 +73,7 @@ class RIPRouter (Entity):
       _handle_data(packet, port)
 
   def _handle_discovery(self, packet, port):
-    source = packet.src
+    source = packet.src # source is another word for neighbor
     if packet.is_link_up:
       self.routing_table.add_neighbor(source)
       self.port_lookup[source] = port
@@ -85,28 +85,51 @@ class RIPRouter (Entity):
       except KeyError as e:
         print "Why you remove %s when I DONT HAVE IT. QQ" % source
         print e
+
+    self._calculate_distance_vector()
+    if (self.prev_distance_vector != self.distance_vector):
+      # Need to send out different routing updates
+      self._send_out_distance_vector()
       
   def _handle_routing_update(self, packet, port):
     self.routing_table.process_neighbor(packet)
-    if (self._update_distance_vector()):
-      routing_update_packet = RoutingUpdate()
-      routing_update_packet.paths = distance_vector
-      self.send(routing_update_packet, port=None, flood=True)
 
-  # This will update the distance vector if it needs changes
-  # and returns a boolean depending on whether or not DV was changed 
-  def _update_distance_vector():
-    pass
+    self._calculate_distance_vector()
+    if (self.prev_distance_vector != self.distance_vector):
+      # Need to send out different routing updates
+      self._send_out_distance_vector()
 
+  # Need to differentiate between neighbors and hosts??
+  # Send to all neighbors their respective version of the distance vector
+  def _send_out_distance_vector(self):
+
+  # Each iteration sends out one distance vector  
+  for neighbor in self.routing_table.iterkeys():
+    real_distance_vector = dict()
+    for host, best_neighbor in distance_vector.iteritems():
+      if (best_neighbor.neighbor != neighbor): # Takes into account Poison Reverse
+        real_distance_vector[host] = best_neighbor.cost
+    routing_update_packet = RoutingUpdate()
+    routing_update_packet.paths = real_distance_vector
+    self.send(routing_update_packet, port=port_lookup[neighbor])
+  
+  def _calculate_distance_vector(self):
+    self.prev_distance_vector = self.distance_vector
+    self.distance_vector = dict()
+
+    # for loop scans routing_table for all possible hosts
+    for neighbor in self.routing_table.iteritems():
+      for host in neighbor.iterkeys():
+        if not self.distance_vector.hasKey(host):
+          distance_vector[host] = self.routing_table.best_neighbor(host, self.port_lookup)
+              
   def _handle_data(packet, port):
     destination = packet.dst
     try:
-      best_neighbor = self.routing_table.best_neighbor(destination, self.port_lookup)
-      self.send(packet, port=self.port_lookup[best_neighbor])
+      best_neighbor = self.distance_vector[destination]
+      self.send(packet, port=self.port_lookup[best_neighbor.neighbor])
     except NoRouteException as e:
       print "There is no route to this destination %s via this router, period." % destination
       print e
-
-  def _create_packet_update():
 
 

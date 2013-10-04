@@ -89,7 +89,10 @@ class RIPRouter (Entity):
     self._calculate_distance_vector()
     if (not self._equalDV()):
       # Need to send out different routing updates
-      self._send_out_distance_vector()
+      self._send_out_distance_vector(self.routing_table.iterkeys())
+    else:
+      #Send only to the newly connected neighbor a DV
+      self._send_out_distance_vector([source])
       
   def _handle_routing_update(self, packet, port):
     self.routing_table.process_neighbor(packet)
@@ -97,7 +100,7 @@ class RIPRouter (Entity):
     self._calculate_distance_vector()
     if (not self._equalDV()):
       # Need to send out different routing updates
-      self._send_out_distance_vector()
+      self._send_out_distance_vector(self.routing_table.iterkeys())
 
   # Return whether or not prev distance vector and current distance vector are the same (host, smallest cost)-wise
   def _equalDV(self):
@@ -111,16 +114,17 @@ class RIPRouter (Entity):
 
   # Need to differentiate between neighbors and hosts??
   # Send to all neighbors their respective version of the distance vector
-  def _send_out_distance_vector(self):
+  def _send_out_distance_vector(self, neighbors):
 
     # Each iteration sends out one distance vector  
-    for neighbor in self.routing_table.iterkeys():
+    for neighbor in neighbors:
       real_distance_vector = dict()
       for host, best_neighbor in self.distance_vector.iteritems():
         if (best_neighbor.neighbor != neighbor): # Takes into account Poison Reverse
           real_distance_vector[host] = best_neighbor.cost
       routing_update_packet = RoutingUpdate()
       routing_update_packet.paths = real_distance_vector
+      print real_distance_vector, self, neighbor
       self.send(routing_update_packet, port=self.port_lookup[neighbor])
     
   def _calculate_distance_vector(self):
@@ -132,13 +136,14 @@ class RIPRouter (Entity):
       for host in host_dict.iterkeys():
         if not self.distance_vector.has_key(host):
           self.distance_vector[host] = self.routing_table.best_neighbor(host, self.port_lookup)
+
               
-  def _handle_data(packet, port):
+  def _handle_data(self, packet, port):
     destination = packet.dst
     try:
       best_neighbor = self.distance_vector[destination]
       self.send(packet, port=self.port_lookup[best_neighbor.neighbor])
-    except NoRouteException as e:
+    except KeyError as e:
       print "There is no route to this destination %s via this router, period." % destination
       print e
 

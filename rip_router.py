@@ -90,8 +90,8 @@ class RIPRouter (Entity):
     if (not self._equalDV()):
       # Need to send out different routing updates
       self._send_out_distance_vector(self.routing_table.iterkeys())
-    else:
-      #Send only to the newly connected neighbor a DV
+    elif packet.is_link_up:
+      #Send only to the newly connected neighbor a DV ONLY IF LINK IS UP
       self._send_out_distance_vector([source])
       
   def _handle_routing_update(self, packet, port):

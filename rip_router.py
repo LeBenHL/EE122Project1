@@ -25,12 +25,12 @@ class RoutingTable(dict):
       print "Why you remove %s when I DONT HAVE IT. QQ" % source
       print e
 
-  def best_neighbor(destination, port_lookup):
+  def best_neighbor(self, destination, port_lookup):
     best_neighbor_so_far = None
     for neighbor, destinations_dict in self.iteritems():
       try:
         neighbor_cost = destinations_dict[destination]
-        if best_neighbor is None or best_neighbor_so_far.cost > neighbor_cost or (best_neighbor_so_far.cost == neighbor_cost and (port_lookup[best_neighbor_so_far.neighbor] > port_lookup[neighbor]):
+        if best_neighbor_so_far is None or best_neighbor_so_far.cost > neighbor_cost or (best_neighbor_so_far.cost == neighbor_cost and port_lookup[best_neighbor_so_far.neighbor] > port_lookup[neighbor]):
           best_neighbor_so_far = Route(neighbor, destination, neighbor_cost)
       except KeyError as e:
         continue
@@ -48,7 +48,7 @@ class RoutingTable(dict):
 
       unreachable_hosts = []
       for host in self[source].iterkeys():
-        if not distance_vector.has_key(host)
+        if not distance_vector.has_key(host):
           unreachable_hosts.append(host)
       
       for host in unreachable_hosts:
@@ -62,15 +62,15 @@ class RIPRouter (Entity):
     self.routing_table = RoutingTable()
     self.port_lookup = dict() # Dictionary with key=neighbor, value=corresponding port
     self.distance_vector = dict()
-    self.prev_distance_vector = null
+    self.prev_distance_vector = None
 
   def handle_rx (self, packet, port):
     if isinstance(packet, DiscoveryPacket):
-      _handle_discovery(packet, port)
+      self._handle_discovery(packet, port)
     elif isinstance(packet, RoutingUpdate):
-      _handle_routing_update(packet, port)
+      self._handle_routing_update(packet, port)
     else:
-      _handle_data(packet, port)
+      self._handle_data(packet, port)
 
   def _handle_discovery(self, packet, port):
     source = packet.src # source is another word for neighbor
@@ -103,25 +103,25 @@ class RIPRouter (Entity):
   # Send to all neighbors their respective version of the distance vector
   def _send_out_distance_vector(self):
 
-  # Each iteration sends out one distance vector  
-  for neighbor in self.routing_table.iterkeys():
-    real_distance_vector = dict()
-    for host, best_neighbor in distance_vector.iteritems():
-      if (best_neighbor.neighbor != neighbor): # Takes into account Poison Reverse
-        real_distance_vector[host] = best_neighbor.cost
-    routing_update_packet = RoutingUpdate()
-    routing_update_packet.paths = real_distance_vector
-    self.send(routing_update_packet, port=port_lookup[neighbor])
-  
+    # Each iteration sends out one distance vector  
+    for neighbor in self.routing_table.iterkeys():
+      real_distance_vector = dict()
+      for host, best_neighbor in self.distance_vector.iteritems():
+        if (best_neighbor.neighbor != neighbor): # Takes into account Poison Reverse
+          real_distance_vector[host] = best_neighbor.cost
+      routing_update_packet = RoutingUpdate()
+      routing_update_packet.paths = real_distance_vector
+      self.send(routing_update_packet, port=self.port_lookup[neighbor])
+    
   def _calculate_distance_vector(self):
     self.prev_distance_vector = self.distance_vector
     self.distance_vector = dict()
 
     # for loop scans routing_table for all possible hosts
-    for neighbor in self.routing_table.iteritems():
-      for host in neighbor.iterkeys():
-        if not self.distance_vector.hasKey(host):
-          distance_vector[host] = self.routing_table.best_neighbor(host, self.port_lookup)
+    for neighbor, host_dict in self.routing_table.iteritems():
+      for host in host_dict.iterkeys():
+        if not self.distance_vector.has_key(host):
+          self.distance_vector[host] = self.routing_table.best_neighbor(host, self.port_lookup)
               
   def _handle_data(packet, port):
     destination = packet.dst

@@ -12,15 +12,26 @@ class RoutingTable(dict):
 
   def __init__(self, *args):
     dict.__init__(self, args)
+    self.cost_lookup = dict()
 
-  def add_neighbor(self, source):
-    self[source] = dict()
-    if isinstance(source, HostEntity):
-      self[source][source] = 1
+  def add_neighbor(self, source, cost=1):
+    if self.has_key(source):
+      #Look up old cost, find delta and apply it
+      delta = cost - self.cost_lookup[source]
+      for host in self[source].iterkeys():
+        self[source][host] += delta
+    else:
+      self[source] = dict()
+      if isinstance(source, HostEntity):
+        self[source][source] = cost
+
+    self.cost_lookup[source] = cost
+
 
   def remove_neighbor(self, source):
     try:
       del self[source]
+      del self.cost_lookup[source]
     except KeyError as e:
       print "Why you remove %s when I DONT HAVE IT. QQ" % source
       print e
@@ -44,7 +55,7 @@ class RoutingTable(dict):
       source = packet.src
       distance_vector = packet.paths
       for host,cost in distance_vector.iteritems():
-        self[source][host] = cost + 1
+        self[source][host] = cost + self.cost_lookup[source]
 
       unreachable_hosts = []
       for host in self[source].iterkeys():
@@ -58,6 +69,9 @@ class RoutingTable(dict):
 Create your RIP router in this file.
 '''
 class RIPRouter (Entity):
+
+  count = 0
+
   def __init__(self):
     self.routing_table = RoutingTable()
     self.port_lookup = dict() # Dictionary with key=neighbor, value=corresponding port
@@ -90,8 +104,8 @@ class RIPRouter (Entity):
     if (not self._equalDV()):
       # Need to send out different routing updates
       self._send_out_distance_vector(self.routing_table.iterkeys())
-    else:
-      #Send only to the newly connected neighbor a DV
+    elif packet.is_link_up:
+      #Send only to the newly connected neighbor a DV ONLY IF LINK IS UP
       self._send_out_distance_vector([source])
       
   def _handle_routing_update(self, packet, port):
@@ -124,7 +138,7 @@ class RIPRouter (Entity):
           real_distance_vector[host] = best_neighbor.cost
       routing_update_packet = RoutingUpdate()
       routing_update_packet.paths = real_distance_vector
-      print real_distance_vector, self, neighbor
+      RIPRouter.count += 1
       self.send(routing_update_packet, port=self.port_lookup[neighbor])
     
   def _calculate_distance_vector(self):
@@ -146,5 +160,32 @@ class RIPRouter (Entity):
     except KeyError as e:
       print "There is no route to this destination %s via this router, period." % destination
       print e
+
+'''
+EC2
+'''
+class SmartRIPRouter (RIPRouter):
+
+  def _handle_discovery(self, packet, port):
+    source = packet.src # source is another word for neighbor
+    if packet.is_link_up:
+      self.routing_table.add_neighbor(source, packet.latency)
+      self.port_lookup[source] = port
+    else:
+      #LINK IS DOWN. QQ
+      self.routing_table.remove_neighbor(source)
+      try:
+        del self.port_lookup[source]
+      except KeyError as e:
+        print "Why you remove %s when I DONT HAVE IT. QQ" % source
+        print e 
+
+    self._calculate_distance_vector()
+    if (not self._equalDV()):
+      # Need to send out different routing updates
+      self._send_out_distance_vector(self.routing_table.iterkeys())
+    elif packet.is_link_up:
+      #Send only to the newly connected neighbor a DV ONLY IF LINK IS UP
+      self._send_out_distance_vector([source]) 
 
 

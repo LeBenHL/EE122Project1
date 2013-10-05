@@ -1,6 +1,7 @@
 from sim.api import *
 from sim.basics import *
 
+import heapq
 from collections import namedtuple
 
 Route = namedtuple("Route", ["neighbor", "host", "cost"])
@@ -186,6 +187,114 @@ class SmartRIPRouter (RIPRouter):
       self._send_out_distance_vector(self.routing_table.iterkeys())
     elif packet.is_link_up:
       #Send only to the newly connected neighbor a DV ONLY IF LINK IS UP
-      self._send_out_distance_vector([source]) 
+      self._send_out_distance_vector([source])
+
+'''
+EC3
+'''
+class Graph:
+
+  def __init__(self):
+    self.adjaceny_list = dict()
+    self.edge_costs = dict()
+
+  def add_node(self, node):
+    self.adjaceny_list[node] = set()
+
+  def add_edge(self, edge, wt=1):
+    node1 = edge[0]
+    node2 = edge[1]
+    try:
+      self.adjaceny_list[node1].add(node2)
+      self.adjaceny_list[node2].add(node1)
+      self._add_edge_weight(edge, wt)
+    except KeyError as e:
+      print "Cannot add edge (%s, %s). Because one or more nodes don't exist" % (node1, node2)
+      print e
+
+  def _add_edge_weight(self, edge, wt):
+    reverse_edge = (edge[1], edge[0])
+    self.edge_costs[reverse_edge] = wt
+    self.edge_costs[edge] = wt
+
+  def del_edge(self, edge):
+    node1 = edge[0]
+    node2 = edge[1]
+    try:
+      self.adjaceny_list[node1].remove(node2)
+      self.adjaceny_list[node2].remove(node1)
+      self._remove_edge_weight(edge)
+    except KeyError as e:
+      print "Cannot delete edge (%s, %s). Because one or more nodes don't exist" % (node1, node2)
+      print e
+
+  def _remove_edge_weight(self, edge):
+    reverse_edge = (edge[1], edge[0])
+    del self.edge_costs[reverse_edge]
+    del self.edge_costs[edge] 
+
+  def del_node(self, node):
+    try:
+      for other_node in self.adjaceny_list[node]:
+        self.adjaceny_list[other_node].remove(node)
+        self._remove_edge_weight((node, other_node))
+      del self.adjaceny_list[node]
+    except KeyError:
+      print "Something bad happened when deleting %s" % node
+
+  def nodes(self):
+    return self.adjaceny_list.keys()
+
+  def neighbors(self, node):
+    neighbors = []
+    for other_node in self.adjaceny_list[node]:
+      neighbors.append((other_node, self.edge_costs[(node, other_node)]))
+    return neighbors
+
+  """
+  Returns a dict of (node, (prev, cost)) pairs using dijkstras algorithm from some node
+  """
+  def shortest_paths(self, node):
+    dist = []
+    heapitems = dict()
+    previous = dict()
+    via = dict()
+    shortest_paths = dict()
+    for n in self.nodes():
+      item = [float('inf'), n]
+      heapq.heappush(dist, item)
+      previous[n] = None
+      via[n] = None
+      heapitems[n] = item
+
+    heapitems[node][0] = 0
+    heapq._siftdown(dist, 0, dist.index(heapitems[node]))
+
+    while dist:
+      cost, n = heapq.heappop(dist) 
+      if cost == float('inf'):
+        break
+      shortest_paths[n] = (via[n], cost)
+
+      for neighbor, edge_cost in self.neighbors(n):
+        alt = cost + edge_cost
+        if alt < heapitems[neighbor][0]:
+          heapitems[neighbor][0] = alt
+          previous[neighbor] = n
+          heapq._siftdown(dist, 0, dist.index(heapitems[neighbor]))
+
+          if n == node:
+            via[neighbor] = neighbor
+          else:
+            via[neighbor] = via[n]
+
+    return shortest_paths
+
+
+
+    
+
+
+
 
 

@@ -199,7 +199,10 @@ class Graph:
     self.edge_costs = dict()
 
   def add_node(self, node):
-    self.adjaceny_list[node] = set()
+    if not self.adjaceny_list.has_key(node):
+      self.adjaceny_list[node] = set()
+    else:
+      print "Node already added!"
 
   def add_edge(self, edge, wt=1):
     node1 = edge[0]
@@ -252,19 +255,17 @@ class Graph:
     return neighbors
 
   """
-  Returns a dict of (node, (prev, cost)) pairs using dijkstras algorithm from some node
+  Returns a dict of (node, (path, cost)) pairs using dijkstras algorithm from some node
   """
   def shortest_paths(self, node):
     dist = []
     heapitems = dict()
     previous = dict()
-    via = dict()
     shortest_paths = dict()
     for n in self.nodes():
       item = [float('inf'), n]
       heapq.heappush(dist, item)
-      previous[n] = None
-      via[n] = None
+      previous[n] = []
       heapitems[n] = item
 
     heapitems[node][0] = 0
@@ -274,19 +275,15 @@ class Graph:
       cost, n = heapq.heappop(dist) 
       if cost == float('inf'):
         break
-      shortest_paths[n] = (via[n], cost)
+      shortest_paths[n] = (previous[n], cost)
 
       for neighbor, edge_cost in self.neighbors(n):
         alt = cost + edge_cost
         if alt < heapitems[neighbor][0]:
           heapitems[neighbor][0] = alt
-          previous[neighbor] = n
+          previous[neighbor] = previous[n] + [neighbor]
           heapq._siftdown(dist, 0, dist.index(heapitems[neighbor]))
 
-          if n == node:
-            via[neighbor] = neighbor
-          else:
-            via[neighbor] = via[n]
 
     return shortest_paths
 

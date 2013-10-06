@@ -11,9 +11,10 @@ class NoRouteException(Exception):
 
 class RoutingTable(dict):
 
-  def __init__(self, *args):
+  def __init__(self, entity, *args):
     dict.__init__(self, args)
     self.cost_lookup = dict()
+    self.entity = entity
 
   def add_neighbor(self, source, cost=1):
     if self.has_key(source):
@@ -23,8 +24,7 @@ class RoutingTable(dict):
         self[source][host] += delta
     else:
       self[source] = dict()
-      if isinstance(source, HostEntity):
-        self[source][source] = cost
+      self[source][source] = cost
 
     self.cost_lookup[source] = cost
 
@@ -56,6 +56,8 @@ class RoutingTable(dict):
       source = packet.src
       distance_vector = packet.paths
       for host,cost in distance_vector.iteritems():
+        if host == self.entity:
+          continue
         self[source][host] = cost + self.cost_lookup[source]
 
       unreachable_hosts = []
@@ -74,7 +76,7 @@ class RIPRouter (Entity):
   count = 0
 
   def __init__(self):
-    self.routing_table = RoutingTable()
+    self.routing_table = RoutingTable(self)
     self.port_lookup = dict() # Dictionary with key=neighbor, value=corresponding port
     self.distance_vector = dict()
     self.prev_distance_vector = None
@@ -123,7 +125,7 @@ class RIPRouter (Entity):
       return False
     # Here, both distance vectors have the same size
     for host, best_neighbor in self.distance_vector.iteritems():
-      if (best_neighbor.cost != self.prev_distance_vector[host].cost):
+      if (not self.prev_distance_vector.has_key(host)) or (best_neighbor.cost != self.prev_distance_vector[host].cost):
         return False
     return True
 
@@ -157,6 +159,9 @@ class RIPRouter (Entity):
               
   def _handle_data(self, packet, port):
     destination = packet.dst
+    if destination == self:
+      #Drop Packet
+      return
     try:
       best_neighbor = self.distance_vector[destination]
       self.send(packet, port=self.port_lookup[best_neighbor.neighbor])
@@ -276,12 +281,15 @@ class LSRouter (Entity):
     intermediate_dict = self.graph.shortest_paths(self)
     self.forwarding_table = dict()
     for entity, path in intermediate_dict.iteritems():
-      if isinstance(entity, HostEntity):
+      if not entity == self:
         best_neighbor = path[0]
         self.forwarding_table[entity] = best_neighbor
 
   def _handle_data(self, packet, port):
     destination = packet.dst
+    if destination == self:
+      #Drop Packet
+      return
     try:
       best_neighbor = self.forwarding_table[destination]
       self.send(packet, port=self.port_lookup[best_neighbor])
@@ -350,8 +358,9 @@ class Graph:
       self.adjaceny_list[node2].remove(node1)
       self._remove_edge_weight(edge)
     except KeyError as e:
-      print "Cannot delete edge (%s, %s). Because one or more nodes don't exist" % (node1, node2)
-      print e
+      #print "Cannot delete edge (%s, %s). Because one or more nodes don't exist" % (node1, node2)
+      #print e
+      pass
 
   def _remove_edge_weight(self, edge):
     reverse_edge = (edge[1], edge[0])

@@ -133,6 +133,8 @@ class RIPRouter (Entity):
 
     # Each iteration sends out one distance vector  
     for neighbor in neighbors:
+      if isinstance(neighbor, HostEntity):
+        continue
       real_distance_vector = dict()
       for host, best_neighbor in self.distance_vector.iteritems():
         if (best_neighbor.neighbor != neighbor): # Takes into account Poison Reverse
@@ -228,13 +230,20 @@ class LSRouter (Entity):
   
 
   def _send_linkstate_update(self, packet, port=None):
+    if port:
+      except_ports = [port]
+    else:
+      except_ports = []
+    for neighbor, port in self.port_lookup.iteritems():
+      if isinstance(neighbor, HostEntity):
+        except_ports.append(port)
     if isinstance(packet, DiscoveryPacket):
       # This clause only executes if a router is responding to a DiscoveryPacket
       # Creation of the LinkStatePacket occurs here
       packet_to_be_sent = LinkStatePacket(packet.src, self, packet.is_link_up, packet.latency)
     else: # packet arg is type LinkStatePacket
       packet_to_be_sent = packet
-    self.send(packet_to_be_sent, port, flood=True) # port's value is obtained from method header
+    self.send(packet_to_be_sent, except_ports, flood=True) # port's value is obtained from method header
 
   def _handle_linkstate_update(self, packet, port):
     # first, check for duplicate linkstate update

@@ -78,10 +78,10 @@ class Packet (object):
     """
     self.trace.append(entity)
 
-  def __repr__ (self):
-    return "<%s from %s->%s>" % (self.__class__.__name__,
-                                 self.src.name if self.src else None,
-                                 self.dst.name if self.dst else None)
+  #def __repr__ (self):
+  #  return "<%s from %s->%s>" % (self.__class__.__name__,
+  #                               self.src.name if self.src else None,
+  #                               self.dst.name if self.dst else None)
 
 
 class Entity (object):

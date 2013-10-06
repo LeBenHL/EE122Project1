@@ -195,7 +195,6 @@ class LSRouter (Entity):
     self.graph.add_node(self)
     self.forwarding_table = dict()
     self.port_lookup = dict()
-    self.list_of_hosts = set()
     self.processed_packets = set()
 
   def handle_rx(self, packet, port):
@@ -211,15 +210,11 @@ class LSRouter (Entity):
     new_edge = (source, self)
     if packet.is_link_up:
       self.graph.add_node(source)
-      self.graph.add_edge(new_edge, 1)
-      if isinstance(source, HostEntity) and source not in self.list_of_hosts:
-        self.list_of_hosts.add(source)
+      self.graph.add_edge(new_edge, packet.latency)
       self.port_lookup[source] = port
     else:
       # Nodes may become isolated in a router's graph after this
-      self.graph.del_node(new_edge, 1)
-      if isinstance(source,HostEntity) and source in self.list_of_hosts:
-        self.list_of_hosts.remove(source)
+      self.graph.del_edge(new_edge)
       try:
         del self.port_lookup[source]
       except KeyError as e:
@@ -236,7 +231,7 @@ class LSRouter (Entity):
     if isinstance(packet, DiscoveryPacket):
       # This clause only executes if a router is responding to a DiscoveryPacket
       # Creation of the LinkStatePacket occurs here
-      packet_to_be_sent = LinkStatePacket(packet.src, self, packet.is_link_up)
+      packet_to_be_sent = LinkStatePacket(packet.src, self, packet.is_link_up, packet.latency)
     else: # packet arg is type LinkStatePacket
       packet_to_be_sent = packet
     self.send(packet_to_be_sent, port, flood=True) # port's value is obtained from method header
@@ -247,17 +242,15 @@ class LSRouter (Entity):
     # in self.processed_packets
     # Check out the 3 print statements in this method. 'hi' is
     # never printed, and the hashset keeps incrementing.
-    print(len(self.processed_packets))
-    print(packet)
-    if packet not in self.processed_packets:
-      self.processed_packets.add(packet)
+    if packet.uid not in self.processed_packets:
+      self.processed_packets.add(packet.uid)
 
       # process update
       new_edge = (packet.node1, packet.node2)
       if packet.is_link_up:
         self.graph.add_node(new_edge[0])
         self.graph.add_node(new_edge[1])
-        self.graph.add_edge(new_edge, 1)
+        self.graph.add_edge(new_edge, packet.link_latency)
       else:
         self.graph.del_edge(new_edge)
 
@@ -267,14 +260,16 @@ class LSRouter (Entity):
       # flood packet updates
       self._send_linkstate_update(packet, port) # Need to send link state update to all neighbors, except for neighbor that sent packet to current router 
     else:
-      print('hi')
+      #print('hi')
+      pass
 
   def _update_forwarding_table(self):
     intermediate_dict = self.graph.shortest_paths(self)
     self.forwarding_table = dict()
-    for host in self.list_of_hosts:
-      best_neighbor = intermediate_dict[host][0][0]
-      self.forwarding_table[host] = best_neighbor
+    for entity, path in intermediate_dict.iteritems():
+      if isinstance(entity, HostEntity):
+        best_neighbor = path[0]
+        self.forwarding_table[entity] = best_neighbor
 
   def _handle_data(self, packet, port):
     destination = packet.dst
@@ -294,12 +289,17 @@ class LinkStatePacket (Packet):
   equivalent to sending out a list of neighbors of a source packet A
   after a single link has gone up or down involving A.
   """
+  counter = 0
 
-  def __init__(self, node1, node2, link_status):
+  def __init__(self, node1, node2, link_status, link_latency):
     Packet.__init__(self)
     self.node1 = node1
     self.node2 = node2
     self.is_link_up = link_status
+    self.link_latency = link_latency
+
+    self.uid = LinkStatePacket.counter
+    LinkStatePacket.counter += 1
 
 '''
 EC3
@@ -314,7 +314,8 @@ class Graph:
     if not self.adjaceny_list.has_key(node):
       self.adjaceny_list[node] = set()
     else:
-      print "Node %s already added! %s is source" % (node, self)
+      #print "Node %s already added! %s is source" % (node, self)
+      pass
 
   def add_edge(self, edge, wt=1):
     node1 = edge[0]
@@ -367,7 +368,7 @@ class Graph:
     return neighbors
 
   """
-  Returns a dict of (node, (path, cost)) pairs using dijkstras algorithm from some node
+  Returns a dict of (node, path) pairs using dijkstras algorithm from some node
   """
   def shortest_paths(self, node):
     dist = []
@@ -387,7 +388,7 @@ class Graph:
       cost, n = heapq.heappop(dist) 
       if cost == float('inf'):
         break
-      shortest_paths[n] = (previous[n], cost)
+      shortest_paths[n] = previous[n]
 
       for neighbor, edge_cost in self.neighbors(n):
         alt = cost + edge_cost

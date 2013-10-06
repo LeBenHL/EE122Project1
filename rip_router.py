@@ -61,13 +61,17 @@ class RoutingTable(dict):
         self[source][host] = cost + self.cost_lookup[source]
 
       unreachable_hosts = []
-      for host in self[source].iterkeys():
-        if not distance_vector.has_key(host):
+      for host in self[source].iterkeys(): # for each host in host dict corresponding to neighbor
+        if not distance_vector.has_key(host): # if neighbor's update doesn't contain host
           unreachable_hosts.append(host)
       
       for host in unreachable_hosts:
-        del self[source][host]
-
+        try:
+          del self[source][host]
+        except KeyError as e:
+          print "This should never print!!! Somehow, it did though . ."
+          print e
+          
 '''
 Create your RIP router in this file.
 '''
@@ -78,7 +82,7 @@ class RIPRouter (Entity):
   def __init__(self):
     self.routing_table = RoutingTable(self)
     self.port_lookup = dict() # Dictionary with key=neighbor, value=corresponding port
-    self.distance_vector = dict()
+    self.distance_vector = dict() # Not the DV that we send out; local DV that router maintains
     self.prev_distance_vector = None
 
   def handle_rx (self, packet, port):
@@ -129,7 +133,6 @@ class RIPRouter (Entity):
         return False
     return True
 
-  # Need to differentiate between neighbors and hosts??
   # Send to all neighbors their respective version of the distance vector
   def _send_out_distance_vector(self, neighbors):
 
@@ -364,8 +367,11 @@ class Graph:
 
   def _remove_edge_weight(self, edge):
     reverse_edge = (edge[1], edge[0])
-    del self.edge_costs[reverse_edge]
-    del self.edge_costs[edge] 
+    try:
+      del self.edge_costs[reverse_edge]
+      del self.edge_costs[edge]
+    except KeyError:
+      print "This should never print!!!"
 
   def del_node(self, node):
     try:

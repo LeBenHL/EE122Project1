@@ -64,9 +64,12 @@ class RoutingTable(dict):
           pass
 
       unreachable_hosts = []
-      for host in self[source].iterkeys(): # for each host in host dict corresponding to neighbor
-        if not distance_vector.has_key(host): # if neighbor's update doesn't contain host
-          unreachable_hosts.append(host)
+      try:
+        for host in self[source].iterkeys(): # self[source] may not exist anymore, so need to try/except
+          if not distance_vector.has_key(host): # if neighbor's update doesn't contain host
+            unreachable_hosts.append(host)
+      except:
+        pass
       
       for host in unreachable_hosts:
         try:

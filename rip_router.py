@@ -65,6 +65,9 @@ class RoutingTable(dict):
 
       unreachable_hosts = []
       for host in self[source].iterkeys(): # for each host in host dict corresponding to neighbor
+        if host == source:
+          #Don't remove neighbor to neighbor entry
+          continue
         if not distance_vector.has_key(host): # if neighbor's update doesn't contain host
           unreachable_hosts.append(host)
       
@@ -86,7 +89,7 @@ class RIPRouter (Entity):
     self.routing_table = RoutingTable(self)
     self.port_lookup = dict() # Dictionary with key=neighbor, value=corresponding port
     self.distance_vector = dict() # Not the DV that we send out; local DV that router maintains
-    self.prev_distance_vector = None
+    self.prev_distance_vector = dict()
 
   def handle_rx (self, packet, port):
     if isinstance(packet, DiscoveryPacket):
@@ -111,30 +114,22 @@ class RIPRouter (Entity):
         print e
 
     self._calculate_distance_vector()
-    if (not self._equalDV()):
-      # Need to send out different routing updates
-      self._send_out_distance_vector(self.routing_table.iterkeys())
-    elif packet.is_link_up:
-      #Send only to the newly connected neighbor a DV ONLY IF LINK IS UP
-      self._send_out_distance_vector([source])
+    self._send_out_distance_vector(self.routing_table.iterkeys())
       
   def _handle_routing_update(self, packet, port):
     self.routing_table.process_neighbor(packet)
 
     self._calculate_distance_vector()
-    if (not self._equalDV()):
-      # Need to send out different routing updates
-      self._send_out_distance_vector(self.routing_table.iterkeys())
+    # Need to send out different routing updates
+    self._send_out_distance_vector(self.routing_table.iterkeys())
 
-  # Return whether or not prev distance vector and current distance vector are the same (host, smallest cost)-wise
-  def _equalDV(self):
-    if (len(self.prev_distance_vector) != len(self.distance_vector)):
+  # Return whether or not prev distance vector and current distance vector for a given neighbor are the same (host, smallest cost)-wise
+  def _equalDV(self, current_dv, neighbor):
+    try:
+      prev_dv = self.prev_distance_vector[neighbor]
+      return prev_dv == current_dv
+    except KeyError:
       return False
-    # Here, both distance vectors have the same size
-    for host, best_neighbor in self.distance_vector.iteritems():
-      if (not self.prev_distance_vector.has_key(host)) or (best_neighbor.cost != self.prev_distance_vector[host].cost):
-        return False
-    return True
 
   # Send to all neighbors their respective version of the distance vector
   def _send_out_distance_vector(self, neighbors):
@@ -149,11 +144,12 @@ class RIPRouter (Entity):
           real_distance_vector[host] = best_neighbor.cost
       routing_update_packet = RoutingUpdate()
       routing_update_packet.paths = real_distance_vector
-      RIPRouter.count += 1
-      self.send(routing_update_packet, port=self.port_lookup[neighbor])
+      if not self._equalDV(real_distance_vector, neighbor):
+        RIPRouter.count += 1
+        self.send(routing_update_packet, port=self.port_lookup[neighbor])
+        self.prev_distance_vector[neighbor] = real_distance_vector;
     
   def _calculate_distance_vector(self):
-    self.prev_distance_vector = self.distance_vector
     self.distance_vector = dict()
 
     # for loop scans routing_table for all possible hosts
@@ -195,12 +191,7 @@ class SmartRIPRouter (RIPRouter):
         print e 
 
     self._calculate_distance_vector()
-    if (not self._equalDV()):
-      # Need to send out different routing updates
-      self._send_out_distance_vector(self.routing_table.iterkeys())
-    elif packet.is_link_up:
-      #Send only to the newly connected neighbor a DV ONLY IF LINK IS UP
-      self._send_out_distance_vector([source])
+    self._send_out_distance_vector(self.routing_table.iterkeys())
 
 class LSRouter (Entity):
   def __init__(self):

@@ -58,7 +58,10 @@ class RoutingTable(dict):
       for host,cost in distance_vector.iteritems():
         if host == self.entity:
           continue
-        self[source][host] = cost + self.cost_lookup[source]
+        try:
+          self[source][host] = cost + self.cost_lookup[source]
+        except:
+          pass
 
       unreachable_hosts = []
       for host in self[source].iterkeys(): # for each host in host dict corresponding to neighbor

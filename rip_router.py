@@ -181,7 +181,7 @@ class SmartRIPRouter (RIPRouter):
 
   def _handle_discovery(self, packet, port):
     source = packet.src # source is another word for neighbor
-    if packet.is_link_up:
+    if packet.is_link_up and packet.latency < 100:
       self.routing_table.add_neighbor(source, packet.latency)
       self.port_lookup[source] = port
     else:
@@ -194,6 +194,21 @@ class SmartRIPRouter (RIPRouter):
         print e 
 
     self._calculate_distance_vector()
+    self._send_out_distance_vector(self.routing_table.iterkeys())
+
+  def _handle_routing_update(self, packet, port):
+    remove_entities = []
+    for entity, cost in packet.paths.iteritems():
+      if cost >= 100:
+        remove_entities.append[entity]
+
+    for entity in remove_entities:
+      del packet.paths[entity]
+
+    self.routing_table.process_neighbor(packet)
+
+    self._calculate_distance_vector()
+    # Need to send out different routing updates
     self._send_out_distance_vector(self.routing_table.iterkeys())
 
 class LSRouter (Entity):

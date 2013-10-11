@@ -54,38 +54,40 @@ class RoutingTable(dict):
       raise NoRouteException()
 
   def process_neighbor(self, packet):
-    source = packet.src
-    distance_vector = packet.paths
-    for host,cost in distance_vector.iteritems():
-      if host == self.entity:
-        continue
+      source = packet.src
+      distance_vector = packet.paths
+      for host,cost in distance_vector.iteritems():
+        if host == self.entity:
+          continue
+        try:
+          self[source][host] = cost + self.cost_lookup[source]
+        except:
+          pass
+
+      unreachable_hosts = []
       try:
-        self[source][host] = cost + self.cost_lookup[source]
+        for host in self[source].iterkeys(): # self[source] may not exist anymore, so need to try/except
+          if host == source:
+            #Don't remove neighbor to neighbor entry
+            continue
+          if not distance_vector.has_key(host): # if neighbor's update doesn't contain host
+            unreachable_hosts.append(host)
       except:
         pass
-
-    unreachable_hosts = []
-    try:
-      for host in self[source].iterkeys(): # self[source] may not exist anymore, so need to try/except
-        if host == source:
-          #Don't remove neighbor to neighbor entry
-          continue
-        if not distance_vector.has_key(host): # if neighbor's update doesn't contain host
-          unreachable_hosts.append(host)
-    except:
-      pass
-    
-    for host in unreachable_hosts:
-      try:
-        del self[source][host]
-      except KeyError as e:
-        print "This should never print!!! Somehow, it did though . ."
-        print e
+      
+      for host in unreachable_hosts:
+        try:
+          del self[source][host]
+        except KeyError as e:
+          print "This should never print!!! Somehow, it did though . ."
+          print e
           
 '''
 Create your RIP router in this file.
 '''
 class RIPRouter (Entity):
+
+  count = 0
 
   def __init__(self):
     self.routing_table = RoutingTable(self)
@@ -147,6 +149,7 @@ class RIPRouter (Entity):
       routing_update_packet = RoutingUpdate()
       routing_update_packet.paths = real_distance_vector
       if not self._equalDV(real_distance_vector, neighbor):
+        RIPRouter.count += 1
         self.send(routing_update_packet, port=self.port_lookup[neighbor])
         self.prev_distance_vector[neighbor] = real_distance_vector;
     

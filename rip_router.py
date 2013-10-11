@@ -57,8 +57,6 @@ class RoutingTable(dict):
     source = packet.src
     distance_vector = packet.paths
     for host,cost in distance_vector.iteritems():
-      if host == self.entity:
-        continue
       try:
         self[source][host] = cost + self.cost_lookup[source]
       except:
@@ -142,7 +140,7 @@ class RIPRouter (Entity):
         continue
       real_distance_vector = dict()
       for host, best_neighbor in self.distance_vector.iteritems():
-        if (best_neighbor.neighbor != neighbor): # Takes into account Poison Reverse
+        if (neighbor != host) and (best_neighbor.neighbor != neighbor) and (best_neighbor.cost < 100): # Takes into account Poison Reverse
           real_distance_vector[host] = best_neighbor.cost
       routing_update_packet = RoutingUpdate()
       routing_update_packet.paths = real_distance_vector
@@ -194,20 +192,6 @@ class SmartRIPRouter (RIPRouter):
     self._calculate_distance_vector()
     self._send_out_distance_vector(self.routing_table.iterkeys())
 
-  def _handle_routing_update(self, packet, port):
-    remove_entities = []
-    for entity, cost in packet.paths.iteritems():
-      if cost >= 100:
-        remove_entities.append[entity]
-
-    for entity in remove_entities:
-      del packet.paths[entity]
-
-    self.routing_table.process_neighbor(packet)
-
-    self._calculate_distance_vector()
-    # Need to send out different routing updates
-    self._send_out_distance_vector(self.routing_table.iterkeys())
 
 class LSRouter (Entity):
   def __init__(self):
